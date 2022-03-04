@@ -1,54 +1,49 @@
-//#include <MsTimer2.h> //Timer interrupt function
 #include <millisDelay.h>
 
-//unsigned long lastDetected = 0;
-volatile int count = 0;
-//volatile int state = LOW; //Define ledOut, default is off
+const unsigned long motionSenseDurationSeconds = 180;
+const int greenMinSeconds = 90;
+const int greenMaxSeconds = 160;
+const int redMinSeconds = 45;
+const int redMaxSeconds = 80;
+const int yellowSeconds = 4;
 
-
-const unsigned long microwaveWarmupPeriod = 1000; //milliseconds
-const unsigned long durationFromLastDetected = 20000; //milliseconds
-
-const int ledOut = 13;
 const int microwaveIn = 2; // Define the interrupt PIN is 0, that is, digital pins 2
-const int green = 5;
-const int yellow = 6;
-const int red = 7;
-const int brakes = 8;
+const int green = 3;
+const int yellow = 4;
+const int red = 5;
+const int brakes = 6;
 
-millisDelay microwaveWarmup;
+volatile bool restartMicrowave = false;
+
 millisDelay microwaveActive;
 millisDelay greenActive;
 millisDelay yellowActive;
 millisDelay redActive;
-//millisDelay pollCount;
 
 void setup() {
   Serial.begin(9600);
   Serial.println("Setup:");
-  pinMode(ledOut, OUTPUT);
-//  microwaveWarmup.start(microwaveWarmupPeriod);
-  microwaveActive.start(durationFromLastDetected);
-//  microwaveActive.stop();
+  
   pinMode(microwaveIn, INPUT);
   pinMode(green, OUTPUT);
   pinMode(yellow, OUTPUT);
   pinMode(red, OUTPUT);
-  pinMode(brakes, OUTPUT);
+  pinMode(brakes, OUTPUT);  
 
+  randomSeed(analogRead(0));
 
-  //pollCount.start(3000);
+  microwaveActive.start(motionSenseDurationSeconds * 1000);  
+
   attachInterrupt(digitalPinToInterrupt(microwaveIn), stateChange, FALLING); // Sets the interrupt function, falling edge triggered interrupts.
 }
 
 void loop() {
-//  if (pollCount.justFinished()) {
-//    Serial.println(count);
-//    Serial.println(digitalRead(microwaveIn));
-//    pollCount.repeat();
-//  }
-//    digitalWrite(ledOut, HIGH);
-
+  if (restartMicrowave) {
+      restartMicrowave = false;
+      Serial.println("interrupt:");
+      Serial.println(microwaveActive.remaining());
+      microwaveActive.restart();
+  }
   if (microwaveActive.justFinished()) {
     Serial.println("Microwave just finished");
     reset();
@@ -72,26 +67,25 @@ void loop() {
       startRed();
     }
   }
-  //Serial.println(digitalRead(microwaveIn));
 }
 
 void startGreen() {
     Serial.println("green HIGH:");
     digitalWrite(green, HIGH);
-    greenActive.start(10000);
+    greenActive.start(random(greenMinSeconds, greenMaxSeconds) * 1000);
 }
 
 void startYellow() {
     Serial.println("yellow HIGH:");
     digitalWrite(yellow, HIGH);
-    yellowActive.start(2000);
+    yellowActive.start(yellowSeconds * 1000);
 }
 
 void startRed() {
-    Serial.println("yellow HIGH:");
+    Serial.println("red HIGH:");
     digitalWrite(red, HIGH);
     digitalWrite(brakes, HIGH);
-    redActive.start(5000);
+    redActive.start(random(redMinSeconds, redMaxSeconds) * 1000);
 }
 
 bool lightsOn() {
@@ -113,10 +107,5 @@ void reset() {
 
 void stateChange() //Interrupt function
 {
-  ///count++;
-  Serial.println("interrupt:");
-  //if (!microwaveWarmup.isRunning()) {
-  //  Serial.println("restart:");
-  microwaveActive.start(durationFromLastDetected);
-  //}
+  restartMicrowave = true;
 }
