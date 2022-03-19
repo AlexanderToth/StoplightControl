@@ -1,24 +1,26 @@
 #include <millisDelay.h>
 
-const unsigned long motionSenseDurationSeconds = 180;
-const int greenMinSeconds = 90;
-const int greenMaxSeconds = 160;
-const int redMinSeconds = 45;
-const int redMaxSeconds = 80;
-const int yellowSeconds = 4;
+const int greenMinSeconds = 60;
+const int greenMaxSeconds = 130;
+const int redMinSeconds = 25;
+const int redMaxSeconds = 60;
+const int yellowSeconds = 6;
 
-const int microwaveIn = 2; // Define the interrupt PIN is 0, that is, digital pins 2
+const int microwaveIn = 2;
 const int green = 3;
 const int yellow = 4;
 const int red = 5;
 const int brakes = 6;
 
-volatile bool restartMicrowave = false;
+volatile bool motionDetected = false;
+volatile bool change = false;
 
-millisDelay microwaveActive;
 millisDelay greenActive;
 millisDelay yellowActive;
 millisDelay redActive;
+
+//millisDelay stateCheck;
+
 
 void setup() {
   Serial.begin(9600);
@@ -32,40 +34,51 @@ void setup() {
 
   randomSeed(analogRead(0));
 
-  microwaveActive.start(motionSenseDurationSeconds * 1000);  
-
-  attachInterrupt(digitalPinToInterrupt(microwaveIn), stateChange, FALLING); // Sets the interrupt function, falling edge triggered interrupts.
+  //stateCheck.start(4000);
+  attachInterrupt(digitalPinToInterrupt(microwaveIn), microwaveChangeInterrupt, CHANGE);  
 }
 
 void loop() {
-  if (restartMicrowave) {
-      restartMicrowave = false;
-      Serial.println("interrupt:");
-      Serial.println(microwaveActive.remaining());
-      microwaveActive.restart();
+  if (change) {
+    change = false;
+    motionDetected = digitalRead(microwaveIn);    
+    if (!motionDetected) {
+      reset();
+    }
   }
-  if (microwaveActive.justFinished()) {
-    Serial.println("Microwave just finished");
-    reset();
-  }
-  else if (microwaveActive.isRunning()) {
+  if (motionDetected) {
     if (redActive.justFinished()) {
       Serial.println("Red Finished");
+      //Serial.println(digitalRead(microwaveIn));
+      //Serial.println(motionDetected);
       reset();
-      startGreen();
-    } else if (!lightsOn()) {
-      Serial.println("No lights on, start green");
       startGreen();
     }
     else if (greenActive.justFinished()) {
       Serial.println("Green done, start yellow");
+      //Serial.println(digitalRead(microwaveIn));
+      //Serial.println(motionDetected);
+
       digitalWrite(green, LOW);
       startYellow();
     }
     else if (yellowActive.justFinished()) {
+      //Serial.println(digitalRead(microwaveIn));
+      //Serial.println(motionDetected);
       digitalWrite(yellow, LOW);
       startRed();
     }
+    else if (!lightsOn()) {
+      Serial.println("No lights on, start green");
+      //Serial.println(digitalRead(microwaveIn));      
+      //Serial.println(motionDetected);
+      startGreen();
+    }
+    //if (stateCheck.justFinished()) {
+    //  Serial.println(digitalRead(microwaveIn));      
+    //  Serial.println(motionDetected);
+    //  stateCheck.restart();
+    //}
   }
 }
 
@@ -105,7 +118,8 @@ void reset() {
     redActive.stop();
 }
 
-void stateChange() //Interrupt function
-{
-  restartMicrowave = true;
+void microwaveChangeInterrupt() {
+  Serial.println("Change");
+  Serial.println(digitalRead(microwaveIn));
+  change = true;
 }
